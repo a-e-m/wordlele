@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+        <title>{{ title }}</title>
+        <style>
+            :root {
+                --rows: {{ rows }};
+                --columns: {{ columns }};
+                --letter-size: min(calc(60vh / var(--rows)), calc(80vw / var(--columns)));
+                --key-size: min(calc(30vh / 11), calc(100vw / 20));
+                --gray: #444;
+                --yellow: #b5933b;
+                --green: #538d4e;
+                --black: #3a3a3c;
+                --background: #121213;
+                --text-color: #eeeeee;
+            }
+
+            body {
+                touch-action: manipulation;
+                color: var(--text-color);
+                background-color: var(--background);
+                text-align: center;
+                font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                align-items: center;
+                padding-top: 1vh;
+                height: 90vh;
+                margin: 0;
+            }
+            h1 {
+                margin: 0;
+                font-size: 4vh;
+                font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+            }
+            @keyframes buttonpress {
+                from {
+                    opacity: 0.8;
+                }
+                50% {
+                    opacity: 0.8;
+                    opacity: 1;
+                }
+                to {
+                    opacity: 1;
+                }
+            }
+            button {
+                background-color: gray;
+                color: white;
+                border: none;
+                border-radius: calc(var(--key-size) * 0.2);
+                font-size: var(--key-size);
+                margin: calc(var(--key-size) * 0.1);
+                padding: calc(var(--key-size) * 0.5);
+                box-sizing: border-box;
+            }
+            @media (pointer: fine) {
+                button:hover {
+                    background-color: rgb(150, 150, 150);
+                }
+            }
+            button:active {
+                animation: buttonpress 0.5s;
+            }
+            button:disabled {
+                background-color: var(--gray);
+            }
+            .keyboard-container button {
+                min-width: calc(1.7 * var(--key-size));
+                height: calc(2.5 * var(--key-size));
+            }
+            .guess-container {
+                display: flex;
+                flex-wrap: wrap;
+                width: calc((var(--letter-size) * 1.2) * var(--columns));
+                justify-content: flex-start;
+                align-content: flex-start;
+                margin: auto;
+                flex: 1;
+            }
+            .keyboard-container {
+                touch-action: manipulation;
+                max-width: 100%;
+                flex: 0;
+                margin: auto;
+            }
+            .guess-row {
+                display: flex;
+                justify-content: center;
+            }
+            @keyframes letterenter {
+                from {
+                    transform: scale(0.96);
+                }
+                to {
+                    transform: scale(1);
+                }
+            }
+            .letter {
+                animation: letterenter 0.1s;
+                font-size: calc(var(--letter-size) * 0.75);
+                color: white;
+                background-color: var(--gray);
+                margin: calc(var(--letter-size) * 0.1);
+                width: var(--letter-size);
+                height: var(--letter-size);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 0.5vmin solid gray;
+                box-sizing: border-box;
+            }
+            .empty {
+                margin: calc(var(--letter-size) * 0.1);
+                border: 0.5vmin solid gray;
+                width: var(--letter-size);
+                height: var(--letter-size);
+                box-sizing: border-box;
+            }
+            @keyframes flip {
+                from {
+                    transform: perspective(50vh) rotateX(0deg);
+                    background-color: var(--gray);
+                    border-color: gray;
+                }
+
+                45% {
+                    transform: perspective(50vh) rotateX(90deg);
+                    background-color: var(--gray);
+                    border-color: var(--gray);
+                }
+
+                55% {
+                    transform: perspective(50vh) rotateX(90deg) scaleY(-1);
+                }
+
+                to {
+                    transform: perspective(50vh) rotateX(180deg) scaleY(-1);
+                }
+            }
+            .letter.yellow, .letter.green, .letter.black {
+                animation: flip 1s;
+            }
+            .letter.yellow, button.yellow {
+                background-color: var(--yellow);
+                border-color: var(--yellow);
+            }
+            .letter.green, button.green {
+                background-color: var(--green);
+                border-color: var(--green);
+            }
+            .letter.black, button.black {
+                background-color: var(--black);
+                border-color: var(--black);
+            }
+            @keyframes fadein {
+                from {
+                    display: flex;
+                    opacity: 0;
+                }
+
+                50% {
+                    opacity: 0;
+                }
+
+                to {
+                    opacity: 1;
+                }
+            }
+            .result-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                display: none;
+                background-color: rgba(0, 0, 0, 0.6);
+            }
+            .result-container.done {
+                animation: fadein 2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .results {
+                font-size: calc(var(--letter-size) * 0.25);
+                background-color: var(--background);
+                border: 0.5vmin solid black;
+                padding: 10vh;
+            }
+        </style>
+        <script>
+            const validGuesses = {{ valid_guesses }};
+            const validAnswers = {{ valid_answers }};
+            const letters = {{ letters }};
+            const keyboard = {{ keyboard }};
+            const rowNum = {{ rows }};
+            const startDate = {{ start_date }};
+
+            const answer = validAnswers[getDayIndex()];
+            const columnNum = answer.length;
+            document.documentElement.style.setProperty('--columns', columnNum);
+
+            const colorMap = {
+                yellow: '🟨',
+                green: '🟩',
+                black :'⬛'
+            };
+            const scoreMap = {
+                black: 0,
+                yellow: 1,
+                green: 2
+            }
+
+            function getDayIndex() {
+                return Math.floor((Date.now() - startDate) / (1000 * 60 * 60 * 24));
+            }
+
+            function withId(id) {
+                return document.getElementById(id);
+            }
+
+            function el(tag, text) {
+                const element = document.createElement(tag);
+                if (text) {
+                    const textEl = document.createTextNode(text);
+                    element.appendChild(textEl);
+                }
+                return element;
+            }
+
+            function letterCounter(answer) {
+                const counter = {};
+                for (let index = 0; index < answer.length; ++index) {
+                    const letter = answer[index];
+                    counter[letter] = (counter[letter] || 0) + 1;
+                }
+                return counter;
+            }
+
+            function colors(answer, guess) {
+                const result = [];
+                const counter = letterCounter(answer);
+                for (let index = 0; index < columnNum; ++index) {
+                    const answerLetter = answer[index];
+                    const guessLetter = guess[index];
+                    let color = 'black';
+                    if (answerLetter === guessLetter) {
+                        color = 'green';
+                        counter[guessLetter] -= 1;
+                    }
+                    
+                    result.push(color);
+                }
+                for (let index = 0; index < columnNum; ++index) {
+                    const answerLetter = answer[index];
+                    const guessLetter = guess[index];
+                    let color = result[index];
+                    if (color === 'black' && counter[guessLetter] > 0) {
+                        color = 'yellow';
+                        counter[guessLetter] -= 1;
+                    }
+                    result[index] = color;
+                }
+                
+                return result;
+            }
+
+            function generateResults(colorHistory, solved) {
+                let results = ['{{ title }}\n'];
+                results.push((solved ? colorHistory.length : 'X') + ' / {{ rows }}\n');
+                colorHistory.forEach(
+                    row => {
+                        row.forEach(
+                            color => results.push(colorMap[color])
+                        );
+                        results.push('\n');
+                    }
+                );
+                return results.join('');
+            }
+
+            function fallbackCopyTextToClipboard(text) {
+                var textArea = document.createElement("textarea");
+                textArea.value = text;
+                
+                // Avoid scrolling to bottom
+                textArea.style.top = "0";
+                textArea.style.left = "0";
+                textArea.style.position = "fixed";
+
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+
+                try {
+                    var successful = document.execCommand('copy');
+                    var msg = successful ? 'successful' : 'unsuccessful';
+                    console.log('Fallback: Copying text command was ' + msg);
+                } catch (err) {
+                    console.error('Fallback: Oops, unable to copy', err);
+                }
+
+                document.body.removeChild(textArea);
+            }
+
+            function copyTextToClipboard(text) {
+                if (!navigator.clipboard) {
+                    fallbackCopyTextToClipboard(text);
+                    return;
+                }
+                navigator.clipboard.writeText(text).then(function() {
+                    console.log('Async: Copying to clipboard was successful!');
+                }, function(err) {
+                    console.error('Async: Could not copy text: ', err);
+                });
+            }
+
+            function resultsPopup(colorHistory, allGreen) {
+                const resultText = generateResults(colorHistory, allGreen);
+                withId('result-container').className += ' done';
+                withId('result-text').innerText = resultText;
+                const copyButton = withId('copy-button');
+                copyButton.addEventListener('click', () => {
+                    copyTextToClipboard(resultText);
+                    withId('result-container').className = 'result-container';
+                });
+                const exitButton = withId('exit-button');
+                exitButton.addEventListener('click', () => {
+                    withId('result-container').className = 'result-container';
+                });
+            }
+        </script>
+    </head>
+    <body>
+        <h1>{{ title }}</h1>
+        <div id="guess-container" class="guess-container"></div>
+        <div id="keyboard-container" class="keyboard-container"></div>
+        <div id="result-container" class="result-container">
+            <div id="results" class="results">
+                <div id="result-text">
+
+                </div>
+                <button id="copy-button" class="copy-button">Copy Results</button>
+                <button id="exit-button" class="exit-button">Close</button>
+            </div>
+        </div>
+        <script>
+            let currentGuess = [];
+            let guesses = [];
+            let valid = false;
+            let colorHistory = [];
+
+            let guessesEls = [];
+            const guessEl = withId('guess-container');
+
+            let keyEls = {};
+            let enterKey = null;
+            let backspaceKey = null;
+            let done = false;
+
+            let loadFromStorage = false;
+            const currentDay = getDayIndex();
+            const storedDay = parseInt(localStorage.getItem("day"));
+            if (currentDay === storedDay) {
+                loadFromStorage = true;
+                guesses = JSON.parse(localStorage.getItem("guesses")) || guesses;
+                colorHistory = JSON.parse(localStorage.getItem("colorHistory")) || colorHistory;
+                const allGreen = JSON.parse(localStorage.getItem("allGreen"));
+                if (allGreen !== null && allGreen !== undefined) {
+                    done = true;
+                    resultsPopup(colorHistory, allGreen);
+                }
+            } else {
+                localStorage.removeItem("guesses");
+                localStorage.removeItem("colorHistory");
+                localStorage.removeItem("allGreen");
+            }
+            localStorage.setItem("day", currentDay);
+
+            function letterEntered(letter) {
+                if (letter.toUpperCase() === 'ESCAPE') {
+                    withId('result-container').className = 'result-container';
+                }
+
+                if (!enterKey || done) {
+                    return;
+                }
+
+                let guess = currentGuess.join('');
+                const row = guesses.length;
+                const column = currentGuess.length;
+
+                if (letter.toUpperCase() === '⏎' || letter.toUpperCase() === 'ENTER') {
+                    if (valid) {
+                        const coloring = colors(answer, guess);
+                        let allGreen = true;
+                        colorHistory.push(coloring);
+                        localStorage.setItem("colorHistory", JSON.stringify(colorHistory));
+                        guesses.push(guess);
+                        localStorage.setItem("guesses", JSON.stringify(guesses));
+                        for (let index = 0; index < columnNum; ++index) {
+                            const letterColor = coloring[index];
+                            allGreen = (letterColor === 'green') && allGreen;
+                            guessesEls[row][index].className += ' ' + letterColor;
+                            const letter = guesses[row][index];
+                            const prevKeyScore = scoreMap[keyEls[letter].className] || -1;
+                            if (prevKeyScore < scoreMap[letterColor]) {
+                                keyEls[letter].className = letterColor;
+                            }
+                        }
+                        if (allGreen || guesses.length >= rowNum) {
+                            done = true;
+                            localStorage.setItem("allGreen", allGreen);
+                            resultsPopup(colorHistory, allGreen);
+                        }
+                        currentGuess = [];
+                    }
+                } else if (letter === '⌫' || letter.toUpperCase() === 'BACKSPACE') {
+                    if (currentGuess.pop()) {
+                        const letterEl = guessesEls[row][column - 1];
+                        letterEl.innerText = '';
+                        letterEl.className = 'empty';
+                    }
+                }
+                if (letters.includes(letter) && currentGuess.length < columnNum) {
+                    currentGuess.push(letter);
+                    const letterEl = guessesEls[row][column];
+                    letterEl.className = 'letter';
+                    letterEl.innerText = letter.toUpperCase();
+                }
+
+                guess = currentGuess.join('');
+                if (guess.length === columnNum && validGuesses[guess]) {
+                    valid = true;
+                    enterKey.disabled = false;
+                    enterKey.className = '';
+                } else {
+                    valid = false;
+                    enterKey.disabled = true;
+                    enterKey.className = 'disabled';
+                }
+            }
+
+            document.addEventListener("keyup", (ev) => {
+                if (ev.altKey || ev.ctrlKey || ev.metaKey || ev.isComposing) {
+                    return;
+                }
+                letterEntered(ev.key)
+            });
+
+            document.addEventListener('touchmove', function (event) {
+                if (event.scale !== 1) { event.preventDefault(); }
+            }, false);
+
+            const keyboardEl = withId("keyboard-container");
+            keyboard.forEach(row => {
+                const rowEl = el("div");
+                row.forEach(letter => {
+                    let classes = '';
+                    if (letter === '<') {
+                        letter = '⌫';
+                    } else if (letter === '>') {
+                        letter = '⏎';
+                    }
+                    const keyButton = el('button', letter);
+                    keyButton.className = classes;
+                    if (letter === '⌫') {
+                        backspaceKey = keyButton;
+                    } else if (letter === '⏎') {
+                        enterKey = keyButton;
+                    } else if (!letters.includes(letter)) {
+                        keyButton.className = 'disabled';
+                        keyButton.disabled = true;
+                    }
+                    keyEls[letter] = keyButton;
+                    keyButton.addEventListener("click", () => letterEntered(letter));
+                    rowEl.appendChild(keyButton);
+                });
+                keyboardEl.appendChild(rowEl);
+            });
+            enterKey.style.width = window.getComputedStyle(backspaceKey).width;
+
+            for (let y = 0; y < rowNum; ++y) {
+                const row = [];
+                for (let x = 0; x < columnNum; ++x) {
+                    if (loadFromStorage && guesses[y] && colorHistory[y]) {
+                        const letter = guesses[y][x];
+                        const color = colorHistory[y][x];
+                        const letterEl = el("div");
+                        const prevKeyScore = scoreMap[keyEls[letter].className] || -1;
+                        if (prevKeyScore < scoreMap[color]) {
+                            keyEls[letter].className = color;
+                        }
+                        letterEl.className = "letter " + color;
+                        letterEl.innerText = letter.toUpperCase();
+                        guessEl.appendChild(letterEl);
+                        row.push(letterEl);
+                        continue;
+                    }
+                    const empty = el("div");
+                    empty.className = 'empty';
+                    guessEl.appendChild(empty);
+                    row.push(empty);
+                }
+                guessesEls.push(row);
+            } 
+        </script>
+    </body>
+</html>
